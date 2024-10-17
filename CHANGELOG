@@ -1,0 +1,14 @@
+[0.0.1-dev1] 2024-10-16 - First external build
+
+Added:
+- Finds and builds sub-applications correctly
+- Installs Go toolchain if Go is not found
+- Checks if go dependency - git - is installed
+- Performs testing and building for all environments
+- Has support of ~/.go-env environment file to specify additional flags, like private repos, proxies etc.
+
+Changed:
+- No changes in this release
+
+Removed:
+- No removals in this release
