@@ -4,7 +4,12 @@ import (
 	"autobuild-go/internal/colors"
 	"autobuild-go/internal/models"
 	"bytes"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +30,7 @@ type GoBuilder struct {
 	goPathPath    string
 	targets       GoBuilderTargets
 	defaultEnv    []string
+	hashers       map[string]hash.Hash
 }
 
 func (g *GoBuilder) Build(projectsSource chan models.Project) {
@@ -45,6 +51,11 @@ func (g *GoBuilder) Build(projectsSource chan models.Project) {
 				colors.ErrLog("Error building app %s: %v", project.AppName, err)
 				return
 			}
+			if err := g.sumExec(project); err != nil {
+				colors.ErrLog("Error creating SHA-256 sum for app %s: %v", project.AppName, err)
+				return
+			}
+
 		}(project)
 	}
 	wg.Wait()
@@ -72,6 +83,44 @@ func (g *GoBuilder) testExec(project models.Project) error {
 	}
 	colors.Success("Successfully tested application "+colors.Blue+"`%s`"+colors.Reset+" in "+colors.Yellow+"%.1f"+colors.Reset+" seconds", project.AppName, time.Since(tn).Seconds())
 
+	return nil
+}
+
+func (g *GoBuilder) sumExec(project models.Project) error {
+	for _, target := range g.targets {
+		outputName := fmt.Sprintf("%s-%s-%s%s", project.AppName, target.GOOS, target.GOARCH, target.EXECSUFFIX)
+		outputPath := filepath.Join(project.BuildDir, outputName)
+
+		if _, err := os.Lstat(outputPath); os.IsNotExist(err) {
+			colors.ErrLog("Application build in `%s` does not exist! Failed to generate SHA sums", outputPath)
+			continue
+		}
+
+		contents, err := os.ReadFile(outputPath)
+		if err != nil {
+			colors.ErrLog("Cannot open build from `%s`: %v! Failed to generate SHA sums", outputPath, err)
+			continue
+		}
+
+		for hasherLabel, hasher := range g.hashers {
+			tn := time.Now()
+			hasherLabelUpper := strings.ToUpper(hasherLabel)
+			colors.Icon(colors.Yellow, "\u226b", "Generating %s Sum for app "+colors.Blue+"%s"+colors.Green+" (%s:%s)"+colors.Reset+" to %s", hasherLabelUpper, project.AppName+target.EXECSUFFIX+".sha265", target.GOOS, target.GOARCH, project.BuildDir)
+			outputShaSum := outputPath + "." + hasherLabel
+
+			if _, err := hasher.Write(contents); err != nil {
+				colors.ErrLog("Cannot generate `%s` sum from `%s`: %v! Failed to generate SHA sums", hasherLabelUpper, outputPath, err)
+				continue
+			}
+			buildSumHex := hex.EncodeToString(hasher.Sum(nil))
+			hasher.Reset()
+			if err := os.WriteFile(outputShaSum, []byte(buildSumHex), os.ModePerm); err != nil {
+				colors.ErrLog("Cannot write %s sum file in `%s`: %v! Failed to generate SHA-256 sum", hasherLabelUpper, outputShaSum, err)
+				continue
+			}
+			colors.Success("Generated "+colors.Green+"%s"+colors.Reset+" app "+colors.Blue+"`%s`"+colors.Reset+" for architecture "+colors.Green+"%s:%s"+colors.Reset+" in "+colors.Yellow+"%.1f"+colors.Reset+" seconds, output: %s", buildSumHex, project.AppName, target.GOOS, target.GOARCH, time.Since(tn).Seconds(), outputPath)
+		}
+	}
 	return nil
 }
 
@@ -159,6 +208,11 @@ func NewGoBuilder(toolchainPath string) *GoBuilder {
 		goRootPath:    filepath.Join(toolchainPath, "go"),
 		goPathPath:    filepath.Join(toolchainPath, "gopath"),
 		targets:       targets,
-		defaultEnv:    env,
+		hashers: map[string]hash.Hash{
+			"sha256": sha256.New(),
+			"sha512": sha512.New(),
+			"sha1":   sha1.New(),
+		},
+		defaultEnv: env,
 	}
 }
