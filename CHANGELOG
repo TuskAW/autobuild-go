@@ -1,3 +1,15 @@
+[0.0.2] 2024-11-11 - Adding support for autobuild.profile file
+
+Added:
+- 'autobuild.profile' YAML file support is included that instructs autobuild-go to apply build rules across projects
+
+Changed:
+- No changes in this release
+
+Removed:
+- No removals in this release
+
+
 [0.0.1-dev1] 2024-10-16 - First external build
 
 Added:

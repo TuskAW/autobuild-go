@@ -3,13 +3,16 @@ package main
 import (
 	"autobuild-go/internal/builder"
 	"autobuild-go/internal/colors"
+	"autobuild-go/internal/config"
 	"autobuild-go/internal/golanginstaller"
 	"autobuild-go/internal/models"
 	"autobuild-go/internal/processors"
 	"fmt"
+	_ "gopkg.in/yaml.v2"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -34,8 +37,17 @@ func main() {
 
 	var path string
 
-	if len(os.Args) > 1 {
-		path = os.Args[1]
+	deflen := 1
+	allFlag := strings.Join(os.Args, " ")
+	switch {
+	case strings.Contains(allFlag, "--profile"):
+		deflen += 2
+	case strings.Contains(allFlag, "--help"):
+		deflen += 1
+	}
+
+	if len(os.Args) > deflen {
+		path = os.Args[len(os.Args)-1]
 	} else {
 		var err error
 		path, err = os.Getwd()
@@ -45,8 +57,10 @@ func main() {
 		}
 	}
 
+	conf := config.GetProfileConfig(path)
+
 	// Create a new GoInstaller instance
-	installer := golanginstaller.New(path)
+	installer := golanginstaller.New(path, conf)
 
 	// Ensure Go is installed
 	if err := installer.EnsureGo(); err != nil {
@@ -59,7 +73,7 @@ func main() {
 	projectDestChan := make(chan models.Project, 5)
 
 	proc := processors.NewProjectWalkerProcessor(path, filepath.Join(path, ".build"), projectDestChan)
-	gobuilder := builder.NewGoBuilder(filepath.Join(path, ".toolchain"))
+	gobuilder := builder.NewGoBuilder(installer.GoToolchainDir(), conf)
 
 	// Run the processor in a separate goroutine
 	go func() {

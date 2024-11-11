@@ -1,0 +1,57 @@
+profiles:
+  default:
+    os:
+      linux:
+        - amd64
+        - arm64
+      windows:
+        - amd64
+        - arm64
+      darwin:
+        - amd64
+        - arm64
+    stages:
+      - test
+      - build
+      - hash
+
+  quickbuild:
+    os:
+      linux:
+        - amd64
+      windows:
+        - amd64
+      darwin:
+        - arm64
+    stages:
+      - test
+      - build
+
+  buildall:
+    os:
+      linux:
+        - arm64
+        - amd64
+      windows:
+        - arm64
+        - amd64
+      darwin:
+        - arm64
+        - amd64
+    stages:
+      - test
+      - build
+      - hash
+
+  dockeronly:
+    os:
+      linux:
+        - arm64
+        - amd64
+    stages:
+      - test
+      - build
+
+toolchain:
+  golang: latest
+  location: $HOME/gotoolchain

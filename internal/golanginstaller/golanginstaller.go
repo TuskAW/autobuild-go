@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"autobuild-go/internal/colors"
+	"autobuild-go/internal/models"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -16,38 +17,52 @@ import (
 
 // GoInstaller defines the structure for installing Go
 type GoInstaller struct {
-	projectPath  string
-	toolchainDir string
+	projectPath    string
+	toolchainDir   string
+	selectedConfig models.SelectedConfig
 }
 
 // New creates a new instance of GoInstaller
-func New(projectPath string) *GoInstaller {
-	toolchainDir := filepath.Join(projectPath, ".toolchain")
+func New(projectPath string, cfg models.SelectedConfig) *GoInstaller {
+	toolchainDir := filepath.Join(cfg.Toolchain.Location, ".toolchain")
+
 	return &GoInstaller{
-		projectPath:  projectPath,
-		toolchainDir: toolchainDir,
+		selectedConfig: cfg,
+		projectPath:    projectPath,
+		toolchainDir:   toolchainDir,
 	}
+}
+
+// GoToolchainDir returns toolchian directory after updating it by EnsureGo() function
+func (g *GoInstaller) GoToolchainDir() string {
+	return g.toolchainDir
 }
 
 // EnsureGo checks if Go is installed, if not it installs the latest version
 func (g *GoInstaller) EnsureGo() error {
+	goVersion := g.selectedConfig.Toolchain.Golang
+	if goVersion == "" || strings.ToLower(goVersion) == "latest" {
+		latestVersion, err := GetLatestGoVersion()
+		if err != nil {
+			return fmt.Errorf("error fetching latest Go version: %v", err)
+		}
+		goVersion = latestVersion
+		g.selectedConfig.Toolchain.Golang = goVersion
+	}
+
+	g.toolchainDir = filepath.Join(g.toolchainDir, g.selectedConfig.Toolchain.Golang)
+
 	if g.isGoInstalled() {
-		colors.Success("Go is already installed")
+		colors.Success("Go %s already installed in %s%s%s", goVersion, colors.Blue, g.toolchainDir, colors.Reset)
 		return nil
 	}
+	colors.Icon(colors.Yellow, "\u226b", "Go is not installed. Installing '%s' version...", goVersion)
 
-	colors.Icon(colors.Yellow, "\u226b", "Go is not installed. Installing latest version...")
-
-	latestVersion, err := GetLatestGoVersion()
-	if err != nil {
-		return fmt.Errorf("error fetching latest Go version: %v", err)
-	}
-
-	if err := g.downloadAndInstallGo(latestVersion); err != nil {
+	if err := g.downloadAndInstallGo(goVersion); err != nil {
 		return fmt.Errorf("error downloading and installing Go: %v", err)
 	}
 
-	colors.Success("Go installed successfully!")
+	colors.Success("Go %s%s%s installed successfully!", colors.Blue, goVersion, colors.Reset)
 	return nil
 }
 

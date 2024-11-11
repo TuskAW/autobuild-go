@@ -18,7 +18,9 @@ import (
 	"time"
 )
 
-type GoBuilderTargets []struct {
+type GoBuilderTargets []GoBuilderTarget
+
+type GoBuilderTarget struct {
 	GOOS       string
 	GOARCH     string
 	EXECSUFFIX string
@@ -31,6 +33,7 @@ type GoBuilder struct {
 	targets       GoBuilderTargets
 	defaultEnv    []string
 	hashers       map[string]hash.Hash
+	stages        map[string]bool
 }
 
 func (g *GoBuilder) Build(projectsSource chan models.Project) {
@@ -43,19 +46,26 @@ func (g *GoBuilder) Build(projectsSource chan models.Project) {
 		wg.Add(1)
 		go func(project models.Project) {
 			defer wg.Done()
-			if err := g.testExec(project); err != nil {
-				colors.ErrLog("Error: %v", err)
-				return
-			}
-			if err := g.buildExec(project); err != nil {
-				colors.ErrLog("Error building app %s: %v", project.AppName, err)
-				return
-			}
-			if err := g.sumExec(project); err != nil {
-				colors.ErrLog("Error creating SHA-256 sum for app %s: %v", project.AppName, err)
-				return
+			if _, ok := g.stages["test"]; ok {
+				if err := g.testExec(project); err != nil {
+					colors.ErrLog("Error: %v", err)
+					return
+				}
 			}
 
+			if _, ok := g.stages["build"]; ok {
+				if err := g.buildExec(project); err != nil {
+					colors.ErrLog("Error building app %s: %v", project.AppName, err)
+					return
+				}
+			}
+
+			if _, ok := g.stages["hash"]; ok {
+				if err := g.sumExec(project); err != nil {
+					colors.ErrLog("Error creating SHA-256 sum for app %s: %v", project.AppName, err)
+					return
+				}
+			}
 		}(project)
 	}
 	wg.Wait()
@@ -190,29 +200,43 @@ func loadEnvironmentFile() []string {
 	return strings.Split(string(contents), "\n")
 }
 
-func NewGoBuilder(toolchainPath string) *GoBuilder {
-	targets := GoBuilderTargets{
-		{"windows", "amd64", ".exe"},
-		{"windows", "arm64", ".exe"},
-		{"linux", "amd64", ""},
-		{"linux", "arm64", ""},
-		{"darwin", "amd64", ""},
-		{"darwin", "arm64", ""},
+func NewGoBuilder(toolchainPath string, conf models.SelectedConfig) *GoBuilder {
+	targets := GoBuilderTargets{}
+
+	for osName, osArch := range conf.Profile.OS {
+		suffix := ""
+		if osName == "windows" {
+			suffix = ".exe"
+		}
+		for _, archTarget := range osArch {
+			targets = append(targets, GoBuilderTarget{
+				GOOS:       osName,
+				GOARCH:     archTarget,
+				EXECSUFFIX: suffix,
+			})
+		}
+
 	}
 
 	env := os.Environ()
 	env = append(env, loadEnvironmentFile()...)
 
+	stagesMap := map[string]bool{}
+	for _, stage := range conf.Profile.Stages {
+		stagesMap[stage] = true
+	}
+
 	return &GoBuilder{
-		toolchainPath: toolchainPath,
-		goRootPath:    filepath.Join(toolchainPath, "go"),
-		goPathPath:    filepath.Join(toolchainPath, "gopath"),
-		targets:       targets,
-		hashers: map[string]hash.Hash{
+		toolchainPath,
+		filepath.Join(toolchainPath, "go"),
+		filepath.Join(toolchainPath, "gopath"),
+		targets,
+		env,
+		map[string]hash.Hash{
 			"sha256": sha256.New(),
 			"sha512": sha512.New(),
 			"sha1":   sha1.New(),
 		},
-		defaultEnv: env,
+		stagesMap,
 	}
 }
