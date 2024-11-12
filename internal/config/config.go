@@ -26,8 +26,9 @@ func loadConfig(filename string) (*models.Config, error) {
 	return &config, nil
 }
 
-func parseArg() string {
+func parseArg() (string, string) {
 	profile := flag.String("profile", "default", "Specify the profile to use")
+	release := flag.String("release", "", "Inject release version to main.releaseVersion variable")
 	help := flag.Bool("help", false, "Show this help")
 	flag.Parse()
 
@@ -35,11 +36,11 @@ func parseArg() string {
 		flag.Usage()
 		os.Exit(1)
 	}
-	return *profile
+	return *profile, *release
 }
 
 func GetProfileConfig(projectPath string) models.SelectedConfig {
-	profile := parseArg()
+	profile, release := parseArg()
 
 	fpath := filepath.Join(projectPath, "autobuild.yaml")
 	if _, err := os.Lstat(fpath); err != nil {
@@ -58,8 +59,9 @@ func GetProfileConfig(projectPath string) models.SelectedConfig {
 		cfg.Toolchain.Location = strings.Replace(cfg.Toolchain.Location, "$HOME", hdir, -1)
 		colors.Success("Profile selected: %s%s%s", colors.Blue, profile, colors.Reset)
 		return models.SelectedConfig{
-			Profile:   val,
-			Toolchain: cfg.Toolchain,
+			Profile:        val,
+			Toolchain:      cfg.Toolchain,
+			CurrentVersion: release,
 		}
 	} else {
 		var profiles []string

@@ -21,8 +21,9 @@ type Config struct {
 }
 
 type SelectedConfig struct {
-	Profile   Profile
-	Toolchain Toolchain
+	Profile        Profile
+	Toolchain      Toolchain
+	CurrentVersion string
 }
 
 func DefaultConfig(path string) SelectedConfig {

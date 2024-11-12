@@ -28,6 +28,19 @@ func main() {
 
 	fmt.Printf(colors.Purple+autobuildGoHeader+colors.Reset+"\n\t%d (c) Mateusz Mierzwinski - matt@mattmierzwinski.com\n\tThis is a free software released under BSD-2 simplified license.\n\tSource: https://github.com/mateuszmierzwinski/autobuild-go\n\n", time.Now().Year())
 
+	colors.HorizontalLine("Autoupdate")
+	colors.InfoLog("Current app version is: %s%s%s", colors.Blue, releaseVersion, colors.Reset)
+	updateInfo, err := CheckUpdates()
+	if err != nil {
+		colors.ErrLog("cannot check latest version: %v", err)
+	} else {
+		if strings.Contains(updateInfo, "using the latest") {
+			colors.Success(updateInfo)
+		} else {
+			colors.InfoLog(updateInfo)
+		}
+	}
+
 	colors.HorizontalLine("Environment check")
 	if !isGitInstalled() {
 		colors.ErrLog("git is not installed. Please install git and try again.")
@@ -41,6 +54,8 @@ func main() {
 	allFlag := strings.Join(os.Args, " ")
 	switch {
 	case strings.Contains(allFlag, "--profile"):
+		deflen += 2
+	case strings.Contains(allFlag, "--release"):
 		deflen += 2
 	case strings.Contains(allFlag, "--help"):
 		deflen += 1

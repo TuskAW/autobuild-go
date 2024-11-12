@@ -27,13 +27,14 @@ type GoBuilderTarget struct {
 }
 
 type GoBuilder struct {
-	toolchainPath string
-	goRootPath    string
-	goPathPath    string
-	targets       GoBuilderTargets
-	defaultEnv    []string
-	hashers       map[string]hash.Hash
-	stages        map[string]bool
+	toolchainPath  string
+	goRootPath     string
+	goPathPath     string
+	targets        GoBuilderTargets
+	defaultEnv     []string
+	hashers        map[string]hash.Hash
+	stages         map[string]bool
+	currentRelease string
 }
 
 func (g *GoBuilder) Build(projectsSource chan models.Project) {
@@ -157,8 +158,16 @@ func (g *GoBuilder) buildExec(project models.Project) error {
 		outputName := fmt.Sprintf("%s-%s-%s%s", project.AppName, target.GOOS, target.GOARCH, target.EXECSUFFIX)
 		outputPath := filepath.Join(project.BuildDir, outputName)
 
+		buildArgs := []string{
+			"build", "-o", outputPath,
+		}
+		if g.currentRelease != "" {
+			buildArgs = append(buildArgs, "--ldflags", fmt.Sprintf("-X main.releaseVersion=%s", g.currentRelease))
+		}
+		buildArgs = append(buildArgs, project.AppMainSrcDir)
+
 		// Prepare the build command: go build -o outputPath project.AppMainSrcDir
-		cmd := exec.Command(filepath.Join(g.goRootPath, "bin", "go"), "build", "-o", outputPath, project.AppMainSrcDir)
+		cmd := exec.Command(filepath.Join(g.goRootPath, "bin", "go"), buildArgs...)
 		cmd.Dir = project.RootDir
 		env := append(g.defaultEnv, fmt.Sprintf("GOOS=%s", target.GOOS))
 		env = append(env, fmt.Sprintf("GOARCH=%s", target.GOARCH))
@@ -238,5 +247,6 @@ func NewGoBuilder(toolchainPath string, conf models.SelectedConfig) *GoBuilder {
 			"sha1":   sha1.New(),
 		},
 		stagesMap,
+		conf.CurrentVersion,
 	}
 }
