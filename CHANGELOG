@@ -1,3 +1,15 @@
+[0.0.3] 2024-11-11 - Enabling versioning injection
+
+Added:
+- Build process can inject version now when called with `--release <version>`. Main package needs to have `releaseVersion` variable defined.
+
+Changed:
+- No changes in this release
+
+Removed:
+- No removals in this release
+
+
 [0.0.2] 2024-11-11 - Adding support for autobuild.profile file
 
 Added:
