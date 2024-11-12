@@ -1,3 +1,15 @@
+[0.0.4] 2024-11-12 - Enabling Go Security (gosec)
+
+Added:
+- GoSec support (https://github.com/securego/gosec) added. Can be used when added `gosec` stage.
+
+Changed:
+- No changes in this release
+
+Removed:
+- No removals in this release
+
+
 [0.0.3] 2024-11-11 - Enabling versioning injection
 
 Added:

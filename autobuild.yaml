@@ -39,6 +39,7 @@ profiles:
         - arm64
         - amd64
     stages:
+      - gosec
       - test
       - build
       - hash
@@ -49,6 +50,7 @@ profiles:
         - arm64
         - amd64
     stages:
+      - gosec
       - test
       - build
 

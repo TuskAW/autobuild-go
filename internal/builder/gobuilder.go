@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +55,13 @@ func (g *GoBuilder) Build(projectsSource chan models.Project) {
 				}
 			}
 
+			if _, ok := g.stages["gosec"]; ok {
+				if err := g.gosecExec(project); err != nil {
+					colors.ErrLog("Error: %v", err)
+					return
+				}
+			}
+
 			if _, ok := g.stages["build"]; ok {
 				if err := g.buildExec(project); err != nil {
 					colors.ErrLog("Error building app %s: %v", project.AppName, err)
@@ -89,10 +97,40 @@ func (g *GoBuilder) testExec(project models.Project) error {
 	// Execute the command
 	if err := cmd.Run(); err != nil {
 		// If there's an error, return the captured stdout and stderr as part of the error
-		persistLog(outBuf, errBuf, project.BuildDir, project.AppName)
+		persistLog("test-", outBuf, errBuf, project.BuildDir, project.AppName)
 		return fmt.Errorf("error testing %s: %v. Logs created", project.AppName, err)
 	}
 	colors.Success("Successfully tested application "+colors.Blue+"`%s`"+colors.Reset+" in "+colors.Yellow+"%.1f"+colors.Reset+" seconds", project.AppName, time.Since(tn).Seconds())
+
+	return nil
+}
+
+func (g *GoBuilder) gosecExec(project models.Project) error {
+	tn := time.Now()
+	colors.Icon(colors.Yellow, "\u226b", "Go security check of "+colors.Blue+"%s"+colors.Reset+" app", project.AppName)
+
+	suffix := ""
+	if runtime.GOOS == "windows" {
+		suffix = ".exe"
+	}
+
+	// Prepare the build command: go build -o outputPath project.AppMainSrcDir
+	cmd := exec.Command(filepath.Join(g.goPathPath, "bin", "gosec"+suffix), "./...")
+	cmd.Dir = project.RootDir
+	cmd.Env = g.defaultEnv
+
+	// Capture output
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	// Execute the command
+	if err := cmd.Run(); err != nil {
+		// If there's an error, return the captured stdout and stderr as part of the error
+		persistLog("gosec-", outBuf, errBuf, project.BuildDir, project.AppName)
+		return fmt.Errorf("security error %s: %v. Logs created", project.AppName, err)
+	}
+	colors.Success("Successfully checked application "+colors.Blue+"`%s`"+colors.Reset+" in "+colors.Yellow+"%.1f"+colors.Reset+" seconds", project.AppName, time.Since(tn).Seconds())
 
 	return nil
 }
@@ -135,19 +173,19 @@ func (g *GoBuilder) sumExec(project models.Project) error {
 	return nil
 }
 
-func persistLog(buf bytes.Buffer, buf2 bytes.Buffer, dir string, name string) {
-	outFileLog := filepath.Join(dir, fmt.Sprintf("build-%s.log", name))
-	outErrLog := filepath.Join(dir, fmt.Sprintf("error-%s.log", name))
+func persistLog(prefix string, buf bytes.Buffer, buf2 bytes.Buffer, dir string, name string) {
+	outFileLog := filepath.Join(dir, fmt.Sprintf("%sbuild-%s.log", prefix, name))
+	outErrLog := filepath.Join(dir, fmt.Sprintf("%serror-%s.log", prefix, name))
 
 	for k, v := range map[string]*bytes.Buffer{
 		outFileLog: &buf,
 		outErrLog:  &buf2,
 	} {
 		if err := os.WriteFile(k, v.Bytes(), os.ModePerm); err != nil {
-			fmt.Printf("Error writing build log: %v", err)
+			fmt.Printf("Error writing log: %v", err)
 			continue
 		}
-		colors.ErrLog("Error building app "+colors.Red+"%s"+colors.Reset+"! Log stored in %s", name, k)
+		colors.ErrLog("Error "+colors.Red+"%s"+colors.Reset+"! Log stored in %s", prefix+name, k)
 	}
 }
 

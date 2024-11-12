@@ -5,6 +5,7 @@ import (
 	"autobuild-go/internal/colors"
 	"autobuild-go/internal/config"
 	"autobuild-go/internal/golanginstaller"
+	"autobuild-go/internal/gopkginstaller"
 	"autobuild-go/internal/models"
 	"autobuild-go/internal/processors"
 	"fmt"
@@ -82,6 +83,12 @@ func main() {
 		colors.ErrLog("Error ensuring Go is installed: %v", err)
 		os.Exit(1)
 	}
+
+	colors.HorizontalLine("Extra tools and packages")
+	gopkgInstaller := gopkginstaller.New(installer.GoToolchainDir(), map[string]string{
+		"gosec": "github.com/securego/gosec/v2/cmd/gosec@latest",
+	})
+	gopkgInstaller.Install()
 
 	colors.HorizontalLine("Testing & building Go projects")
 
